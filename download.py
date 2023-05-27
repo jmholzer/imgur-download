@@ -1,23 +1,22 @@
 import logging
 import os
+from pathlib import Path
+from queue import Queue
+from threading import Thread
 
 import requests
 
-from utils import create_image_folder, generate_save_path
-
-from pathlib import Path
-
-from queue import Queue
-from threading import Thread
+from utils import create_image_folder, generate_save_path, timer
 
 TYPES = {"image/jpeg", "image/png"}
 CLIENT_ID = os.environ["imgur_client_id"]
 
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("main")
 
 
+@timer
 def main() -> None:
     """
     The main function of the script.
@@ -30,7 +29,7 @@ def main() -> None:
     """
     urls = _get_image_urls()
     save_path = generate_save_path()
-    _download_images_threaded(urls, save_path)
+    _download_images_sequential(urls, save_path)
 
 
 def _get_image_urls() -> dict[str, list[str]]:

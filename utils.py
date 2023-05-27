@@ -1,7 +1,10 @@
+import logging
 import os
-from pathlib import Path
-
 from datetime import datetime
+from pathlib import Path
+from time import perf_counter
+
+logger = logging.getLogger("main")
 
 
 def create_image_folder(save_path: Path) -> None:
@@ -28,3 +31,23 @@ def generate_save_path() -> None:
     )
     create_image_folder(save_path)
     return save_path
+
+
+def timer(func: callable) -> callable:
+    """Decorator that prints the execution time of a function.
+
+    Args:
+        func (function): The function to be decorated.
+
+    Returns:
+        function: The decorated function.
+    """
+
+    def wrapper(*args, **kwargs):
+        start_time = perf_counter()
+        result = func(*args, **kwargs)
+        end_time = perf_counter()
+        logger.info("Execution time: %.1f seconds", end_time - start_time)
+        return result
+
+    return wrapper
