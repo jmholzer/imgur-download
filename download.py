@@ -3,8 +3,10 @@ import os
 
 import requests
 
+from .utils import create_image_folder, generate_save_path
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 from pathlib import Path
 
@@ -59,16 +61,16 @@ def _download_images(urls: dict[str, list[str]], save_path: Path) -> None:
         file_path = save_path
         if len(urls[id]) > 1:
             file_path = save_path / id
-            _create_image_folder(file_path)
+            create_image_folder(file_path)
         for index, url in enumerate(urls[id]):
             type = url.rpartition(".")[2]
             if len(urls[id]) > 1:
-                _download_image(url, file_path / f"{index}.{type}")
+                _download_image_sequential(url, file_path / f"{index}.{type}")
             else:
-                _download_image(url, file_path / f"{id}.{type}")
+                _download_image_sequential(url, file_path / f"{id}.{type}")
 
 
-def _download_image(url: str, save_path: Path) -> None:
+def _download_image_sequential(url: str, save_path: Path) -> None:
     """Downloads an image from a given url and saves it at the specified path.
 
     Args:
@@ -83,21 +85,10 @@ def _download_image(url: str, save_path: Path) -> None:
         response.raise_for_status()
     except requests.HTTPError as http_error:
         logger.error(f"Error downloading url {url}:\n {http_error}")
+        return False
     with open(save_path, "wb") as file:
         file.write(response.content)
-
-
-def _create_image_folder(save_path: Path) -> None:
-    """
-    Creates a new folder at the specified path if it doesn't already exist.
-
-    Args:
-        save_path (Path): The path where the new folder should be created.
-
-    Returns:
-        None
-    """
-    os.makedirs(save_path, exist_ok=True)
+    logger.info(f"Successfully downloaded image {url}")
 
 
 def main() -> None:
@@ -111,7 +102,8 @@ def main() -> None:
         None
     """
     urls = _get_image_urls()
-    _download_images(urls, Path("images"))
+    save_path = generate_save_path()
+    _download_images(urls, save_path)
 
 
 if __name__ == "__main__":
