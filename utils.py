@@ -23,6 +23,8 @@ def generate_save_path() -> None:
     Returns:
         Path: The path object representing the newly created directory.
     """
-    save_path = Path("images") / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_path = Path("images") / "downloads_" + datetime.now().strftime(
+        "%Y-%m-%d_%H-%M-%S"
+    )
     create_image_folder(save_path)
     return save_path
