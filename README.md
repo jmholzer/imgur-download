@@ -1,6 +1,6 @@
 # Imgur Image Downloader
 
-This project is a Python script that enables you to download images from Imgur galleries based on a given tag.
+This project is a Python script that enables you to download tagged images from [Imgur](https://imgur.com/).
 
 ## Download Modes
 
@@ -40,7 +40,7 @@ Where:
 An example command to download images tagged with `astronomy` using 10 threads is:
 
 ```bash
-python imgur_downloader.py --tag astronomy --mode threaded --threads 10
+python download.py --tag astronomy --mode threaded --threads 12
 ```
 
 ## Imgur Tags
