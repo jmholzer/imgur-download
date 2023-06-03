@@ -153,19 +153,18 @@ def _initiate_download(
         None
     """
     if args.mode == "threaded":
-        _download_images_threaded(urls, base_path, args.threads)
+        _prepare_download_threaded(urls, base_path, args.threads)
     elif args.mode == "sequential":
-        _download_images_sequential(urls, base_path)
+        _prepare_download_sequential(urls, base_path)
     else:
         logger.error(f"Invalid mode: {args.mode}. Use 'threaded' or 'sequential'.")
 
 
-def _download_images_sequential(urls: dict[str, list[str]], base_path: Path) -> None:
+def _prepare_download_sequential(urls: dict[str, list[str]], base_path: Path) -> None:
     """Downloads images from given urls and saves them at the specified path
     sequentially.
 
-    Each image is saved with its unique ID if multiple images belong to the same
-    ID. A separate folder is created for each ID that has multiple images.
+    A separate folder is created for each ID that has multiple images.
 
     Args:
         urls (dict[str, list[str]]): A dictionary containing unique IDs as keys
@@ -181,19 +180,22 @@ def _download_images_sequential(urls: dict[str, list[str]], base_path: Path) -> 
             _download_single_image(url, save_path)
 
 
-def _download_images_threaded(
+def _prepare_download_threaded(
     urls: dict[str, list[str]], base_path: Path, num_threads: int
 ) -> None:
-    """Downloads images from given urls and saves them at the specified path
-    using ten threads.
+    """
+    This function initiates a multithreaded download of images. It uses a worker
+    function `_download_images_worker` to download images concurrently. The function
+    assigns URLs to threads and manages thread execution. Each thread downloads
+    the images and saves them at the specified location. The function will
+    block until all downloads are completed.
 
-    Each image is saved with its unique ID if multiple images belong to the same
-    ID. A separate folder is created for each ID that has multiple images.
 
     Args:
-        urls (dict[str, list[str]]): A dictionary containing unique IDs as keys
-            and corresponding lists of image urls as values.
-        base_path (Path): The path where the images should be saved.
+        urls (dict[str, list[str]]): A dictionary where the key is the image id and
+            the value is a list of URLs for the associated images.
+        base_path (Path): The base directory path where the downloaded images will be saved.
+        num_threads (int): The number of threads to use for the downloads.
 
     Returns:
         None
