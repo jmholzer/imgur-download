@@ -187,10 +187,8 @@ def _prepare_download_threaded(
 ) -> None:
     """
     This function initiates a multithreaded download of images. It uses a worker
-    function to download images concurrently. The function assigns URLs to threads
-    and manages thread execution. Each thread downloads the images and saves them
-    at the specified location. The function will block until all downloads are completed.
-    The `base_path` directory is created if it doesn't exist.
+    function to download images concurrently. The function will block until all]
+    downloads are completed. The `base_path` directory is created if it doesn't exist.
 
 
     Args:
