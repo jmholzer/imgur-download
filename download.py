@@ -91,10 +91,6 @@ def _get_image_urls(tag: str) -> dict[str, list[str]]:
             that imgur ID. Returns an empty dictionary if an error occurs
             while making the request or if no images are found for the
             provided tag.
-
-    Raises:
-        requests.exceptions.RequestException: If there is an issue
-            with the GET request to Imgur's API.
     """
     headers = {"Authorization": f"Client-ID {CLIENT_ID}"}
     response = requests.get(f"https://api.imgur.com/3/gallery/t/{tag}", headers=headers)
@@ -201,7 +197,7 @@ def _prepare_download_threaded(
     Returns:
         None
     """
-    queue = Queue()
+    queue: Queue = Queue()
     threads = []
     for _ in range(num_threads):
         t = Thread(target=_download_images_worker, args=(queue,))
@@ -257,7 +253,7 @@ def _download_single_image(url: str, save_path: Path) -> None:
         response.raise_for_status()
     except requests.exceptions.RequestException as http_error:
         logger.error(f"Error downloading url {url}:\n {http_error}")
-        return False
+        return
     with open(save_path, "wb") as file:
         file.write(response.content)
     logger.info(f"Successfully downloaded {url}")
