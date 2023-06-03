@@ -255,7 +255,7 @@ def _download_single_image(url: str, save_path: Path) -> None:
     response = requests.get(url)
     try:
         response.raise_for_status()
-    except requests.HTTPError as http_error:
+    except requests.exceptions.RequestException as http_error:
         logger.error(f"Error downloading url {url}:\n {http_error}")
         return False
     with open(save_path, "wb") as file:
