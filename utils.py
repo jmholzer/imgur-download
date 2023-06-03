@@ -19,15 +19,18 @@ def create_image_folder(save_path: Path) -> None:
     os.makedirs(save_path, exist_ok=True)
 
 
-def generate_save_path() -> None:
+def generate_save_path(tag: str) -> Path:
     """Generates a save path for images with a unique identifier based on the
     current timestamp.
+
+    Args:
+        tag (str): The tag to be used for the image search.
 
     Returns:
         Path: The path object representing the newly created directory.
     """
     save_path = Path("images") / (
-        "downloads_" + datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        f"{tag}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
     )
     create_image_folder(save_path)
     return save_path
