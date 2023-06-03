@@ -1,10 +1,11 @@
 import logging
 from time import perf_counter
+from typing import Callable
 
 logger = logging.getLogger("main")
 
 
-def timer(func: callable) -> callable:
+def timer(func: Callable) -> Callable:
     """Decorator that prints the execution time of a function.
 
     Args:
