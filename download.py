@@ -1,13 +1,14 @@
 import argparse
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 from queue import Queue
 from threading import Thread
 
 import requests
 
-from utils import create_image_folder, generate_save_path, timer
+from utils import timer
 
 TYPES = {"image/jpeg", "image/png"}
 CLIENT_ID = os.environ["imgur_client_id"]
@@ -30,9 +31,9 @@ def main() -> None:
     """
     args = _parse_args()
     urls = _get_image_urls(args.tag)
-    save_path = generate_save_path(args.tag)
+    base_path = _get_save_base_path(args.tag)
     _log_initiate_download_message(args)
-    _initiate_download(urls, save_path, args)
+    _initiate_download(urls, base_path, args)
 
 
 def _parse_args() -> argparse.Namespace:
@@ -101,8 +102,8 @@ def _get_image_urls(tag: str) -> dict[str, list[str]]:
     for item in response.json()["data"]["items"]:
         if "images" not in item:
             continue
-        id = item["link"].rpartition("/")[2]
-        urls[id] = [image["link"] for image in item["images"]]
+        image_id = item["link"].rpartition("/")[2]
+        urls[image_id] = [image["link"] for image in item["images"]]
     return urls
 
 
@@ -116,34 +117,35 @@ def _log_initiate_download_message(args: argparse.Namespace) -> None:
     Returns:
         None
     """
-    logger.info(f"Downloading images with tag '{args.tag}' in {args.mode} mode.")
+    message = f"Downloading images with tag '{args.tag}' in {args.mode} mode."
     if args.mode == "threaded":
-        logger.info(f"Using {args.threads} threads.")
+        message += f" Using {args.threads} threads."
+    logger.info(message)
 
 
 def _initiate_download(
-    urls: dict[str, list[str]], save_path: Path, args: argparse.Namespace
+    urls: dict[str, list[str]], base_path: Path, args: argparse.Namespace
 ) -> None:
     """
     Starts image download in either 'threaded' or 'sequential' mode.
 
     Args:
         urls: Dictionary with image IDs as keys and lists of URLs as values.
-        save_path: Location to save downloaded images.
+        base_path: Location to save downloaded images.
         args: Namespace with 'mode' and 'threads' for download settings.
 
     Returns:
         None
     """
     if args.mode == "threaded":
-        _download_images_threaded(urls, save_path, args.threads)
+        _download_images_threaded(urls, base_path, args.threads)
     elif args.mode == "sequential":
-        _download_images_sequential(urls, save_path)
+        _download_images_sequential(urls, base_path)
     else:
         logger.error(f"Invalid mode: {args.mode}. Use 'threaded' or 'sequential'.")
 
 
-def _download_images_sequential(urls: dict[str, list[str]], save_path: Path) -> None:
+def _download_images_sequential(urls: dict[str, list[str]], base_path: Path) -> None:
     """Downloads images from given urls and saves them at the specified path
     sequentially.
 
@@ -153,26 +155,19 @@ def _download_images_sequential(urls: dict[str, list[str]], save_path: Path) -> 
     Args:
         urls (dict[str, list[str]]): A dictionary containing unique IDs as keys
             and corresponding lists of image urls as values.
-        save_path (Path): The path where the images should be saved.
+        base_path (Path): The path where the images should be saved.
 
     Returns:
         None
     """
-    for id in urls:
-        file_path = save_path
-        if len(urls[id]) > 1:
-            file_path = save_path / id
-            create_image_folder(file_path)
-        for index, url in enumerate(urls[id]):
-            type = url.rpartition(".")[2]
-            if len(urls[id]) > 1:
-                _download_single_image(url, file_path / f"{index}.{type}")
-            else:
-                _download_single_image(url, file_path / f"{id}.{type}")
+    for image_id in urls:
+        save_paths = _get_save_paths(image_id, urls[image_id], base_path)
+        for url, save_path in zip(urls[image_id], save_paths):
+            _download_single_image(url, save_path)
 
 
 def _download_images_threaded(
-    urls: dict[str, list[str]], save_path: Path, num_threads: int
+    urls: dict[str, list[str]], base_path: Path, num_threads: int
 ) -> None:
     """Downloads images from given urls and saves them at the specified path
     using ten threads.
@@ -183,7 +178,7 @@ def _download_images_threaded(
     Args:
         urls (dict[str, list[str]]): A dictionary containing unique IDs as keys
             and corresponding lists of image urls as values.
-        save_path (Path): The path where the images should be saved.
+        base_path (Path): The path where the images should be saved.
 
     Returns:
         None
@@ -195,17 +190,10 @@ def _download_images_threaded(
         t.start()
         threads.append(t)
 
-    for id in urls:
-        file_path = save_path
-        if len(urls[id]) > 1:
-            file_path = save_path / id
-            create_image_folder(file_path)
-        for index, url in enumerate(urls[id]):
-            type = url.rpartition(".")[2]
-            if len(urls[id]) > 1:
-                queue.put((url, file_path / f"{index}.{type}"))
-            else:
-                queue.put((url, file_path / f"{id}.{type}"))
+    for image_id in urls:
+        save_paths = _get_save_paths(image_id, urls[image_id], base_path)
+        for url, save_path in zip(urls[image_id], save_paths):
+            queue.put((url, save_path))
 
     # add sentinels for each thread
     for _ in threads:
@@ -241,7 +229,7 @@ def _download_single_image(url: str, file_path: Path) -> None:
 
     Args:
         url (str): The url from where the image needs to be downloaded.
-        save_path (Path): The path where the downloaded image should be saved.
+        base_path (Path): The path where the downloaded image should be saved.
 
     Returns:
         None
@@ -255,6 +243,47 @@ def _download_single_image(url: str, file_path: Path) -> None:
     with open(file_path, "wb") as file:
         file.write(response.content)
     logger.info(f"Successfully downloaded {url}")
+
+
+def _get_save_base_path(tag: str) -> Path:
+    """Generates a save path for images with a unique identifier based on the
+    current timestamp.
+
+    Args:
+        tag (str): The tag to be used for the image search.
+
+    Returns:
+        Path: The path object representing the newly created directory.
+    """
+    save_path = Path("images") / (
+        f"{tag}_{datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}"
+    )
+    save_path.mkdir(parents=True, exist_ok=True)
+    return save_path
+
+
+def _get_save_paths(image_id: str, urls: list[str], base_path: Path) -> list[Path]:
+    """
+    Generates a file path based on the given id and url.
+
+    Args:
+        image_id (str): The unique identifier for the image(s).
+        url list[str]: A list of urls of the image(s) to download.
+        base_path (Path): The base directory to save the images in.
+
+    Returns:
+        list[Path]: A list of paths where the images should be saved.
+    """
+    save_paths = []
+    if len(urls) > 1:
+        (base_path / image_id).mkdir(parents=True, exist_ok=True)
+    for url in urls:
+        ext = url.rpartition(".")[2]
+        if len(urls) > 1:
+            save_paths.append(base_path / image_id / f"{image_id}.{ext}")
+        else:
+            save_paths.append(base_path / f"{image_id}.{ext}")
+    return save_paths
 
 
 if __name__ == "__main__":
