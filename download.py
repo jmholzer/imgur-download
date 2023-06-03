@@ -1,3 +1,4 @@
+import argparse
 import logging
 import os
 from pathlib import Path
@@ -27,12 +28,55 @@ def main() -> None:
     Returns:
         None
     """
-    urls = _get_image_urls()
-    save_path = generate_save_path()
-    _download_images_sequential(urls, save_path)
+    args = _parse_args()
+    urls = _get_image_urls(args.tag)
+    save_path = generate_save_path(args.tag)
+    _log_initiate_download_message(args)
+    _initiate_download(urls, save_path, args)
 
 
-def _get_image_urls() -> dict[str, list[str]]:
+def _parse_args() -> argparse.Namespace:
+    """
+    Parses command line arguments for download mode and thread count.
+
+    Returns:
+        Parsed arguments as a Namespace object.
+    """
+    parser = argparse.ArgumentParser(
+        description="Download images from Imgur's gallery of a tag."
+    )
+    parser.add_argument(
+        "--tag",
+        type=str,
+        required=True,
+        help=(
+            "Choose a tag to download images from. For example, 'astronomy' or"
+            " 'cats'."
+        ),
+    )
+    parser.add_argument(
+        "--mode",
+        type=str,
+        required=True,
+        choices=["threaded", "sequential"],
+        help=(
+            "Choose either 'threaded' for downloading images using multiple"
+            " threads or 'sequential' for sequential downloading."
+        ),
+    )
+    parser.add_argument(
+        "--threads",
+        type=int,
+        default=10,
+        help=(
+            "Number of threads to use in 'threaded' mode. Default is 10. Only"
+            " valid when --mode=threaded."
+        ),
+    )
+    return parser.parse_args()
+
+
+def _get_image_urls(tag: str) -> dict[str, list[str]]:
     """Fetches and returns links to viral images from Imgur's hot gallery.
 
     This function sends a GET request to Imgur's hot/viral gallery endpoint
@@ -40,13 +84,14 @@ def _get_image_urls() -> dict[str, list[str]]:
     response data. If an HTTP error occurs during the request, it logs the
     error and returns an empty list.
 
+    Args:
+        tag (str): The tag to search for.
+
     Returns:
-        list[str]: List of image URLs. If an error occurs, returns an empty list.
+        dict[str, list[str]]: List of image URLs. If an error occurs, returns an empty list.
     """
     headers = {"Authorization": f"Client-ID {CLIENT_ID}"}
-    response = requests.get(
-        "https://api.imgur.com/3/gallery/t/astronomy", headers=headers
-    )
+    response = requests.get(f"https://api.imgur.com/3/gallery/t/{tag}", headers=headers)
     try:
         response.raise_for_status()
     except requests.HTTPError as http_error:
@@ -59,6 +104,43 @@ def _get_image_urls() -> dict[str, list[str]]:
         id = item["link"].rpartition("/")[2]
         urls[id] = [image["link"] for image in item["images"]]
     return urls
+
+
+def _log_initiate_download_message(args: argparse.Namespace) -> None:
+    """
+    Logs a message to the console indicating the start of image download.
+
+    Args:
+        args: Namespace with values for 'tag', 'mode' and 'threads'.
+
+    Returns:
+        None
+    """
+    logger.info(f"Downloading images with tag '{args.tag}' in {args.mode} mode.")
+    if args.mode == "threaded":
+        logger.info(f"Using {args.threads} threads.")
+
+
+def _initiate_download(
+    urls: dict[str, list[str]], save_path: Path, args: argparse.Namespace
+) -> None:
+    """
+    Starts image download in either 'threaded' or 'sequential' mode.
+
+    Args:
+        urls: Dictionary with image IDs as keys and lists of URLs as values.
+        save_path: Location to save downloaded images.
+        args: Namespace with 'mode' and 'threads' for download settings.
+
+    Returns:
+        None
+    """
+    if args.mode == "threaded":
+        _download_images_threaded(urls, save_path, args.threads)
+    elif args.mode == "sequential":
+        _download_images_sequential(urls, save_path)
+    else:
+        logger.error(f"Invalid mode: {args.mode}. Use 'threaded' or 'sequential'.")
 
 
 def _download_images_sequential(urls: dict[str, list[str]], save_path: Path) -> None:
@@ -89,7 +171,9 @@ def _download_images_sequential(urls: dict[str, list[str]], save_path: Path) -> 
                 _download_single_image(url, file_path / f"{id}.{type}")
 
 
-def _download_images_threaded(urls: dict[str, list[str]], save_path: Path) -> None:
+def _download_images_threaded(
+    urls: dict[str, list[str]], save_path: Path, num_threads: int
+) -> None:
     """Downloads images from given urls and saves them at the specified path
     using ten threads.
 
@@ -106,7 +190,7 @@ def _download_images_threaded(urls: dict[str, list[str]], save_path: Path) -> No
     """
     queue = Queue()
     threads = []
-    for _ in range(10):
+    for _ in range(num_threads):
         t = Thread(target=_download_images_worker, args=(queue,))
         t.start()
         threads.append(t)
