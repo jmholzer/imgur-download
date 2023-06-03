@@ -116,7 +116,8 @@ def _get_image_urls(tag: str) -> dict[str, list[str]]:
     for item in items:
         if "images" not in item:
             continue
-        image_id = item["link"].rpartition("/")[2]
+        # Process e.g. "https://imgur.com/a/iTGAyBs" to "iTGAyBs" using pathlib
+        image_id = Path(item["link"]).name
         urls[image_id] = [image["link"] for image in item["images"]]
     return urls
 
@@ -292,7 +293,7 @@ def _get_save_paths(image_id: str, urls: list[str], base_path: Path) -> list[Pat
     if len(urls) > 1:
         (base_path / image_id).mkdir(parents=True, exist_ok=True)
     for url in urls:
-        ext = url.rpartition(".")[2]
+        ext = Path(url).suffix[1:]
         if len(urls) > 1:
             save_paths.append(base_path / image_id / f"{image_id}.{ext}")
         else:
