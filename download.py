@@ -41,7 +41,7 @@ def _parse_args() -> argparse.Namespace:
     Parses command line arguments for download mode and thread count.
 
     Returns:
-        Parsed arguments as a Namespace object.
+        argparse.Namespace: Parsed arguments as a Namespace object.
     """
     parser = argparse.ArgumentParser(
         description="Download images from Imgur's gallery of a tag."
@@ -79,18 +79,18 @@ def _parse_args() -> argparse.Namespace:
 
 def _get_image_urls(tag: str) -> dict[str, list[str]]:
     """
-    This function retrieves a dictionary mapping image IDs to
+    This function retrieves a dictionary mapping imgur IDs to
     lists of image URLs from Imgur's gallery tagged with a given tag.
 
     Args:
-    tag (str): The tag to filter images by in Imgur's gallery.
+        tag (str): The tag to filter images by in Imgur's gallery.
 
     Returns:
         dict[str, list[str]]: A dictionary where each key is an
-        image ID, and each value is a list of URLs associated with
-        that image ID. Returns an empty dictionary if an error occurs
-        while making the request or if no images are found for the
-        provided tag.
+            imgur ID, and each value is a list of URLs associated with
+            that imgur ID. Returns an empty dictionary if an error occurs
+            while making the request or if no images are found for the
+            provided tag.
 
     Raises:
         requests.exceptions.RequestException: If there is an issue
@@ -117,8 +117,9 @@ def _get_image_urls(tag: str) -> dict[str, list[str]]:
         if "images" not in item:
             continue
         # Process e.g. "https://imgur.com/a/iTGAyBs" to "iTGAyBs" using pathlib
-        image_id = Path(item["link"]).name
-        urls[image_id] = [image["link"] for image in item["images"]]
+        imgur_id = Path(item["link"]).name
+        # Multiple images can be associated with one imgur ID
+        urls[imgur_id] = [image["link"] for image in item["images"]]
     return urls
 
 
@@ -145,7 +146,7 @@ def _initiate_download(
     Starts image download in either 'threaded' or 'sequential' mode.
 
     Args:
-        urls: Dictionary with image IDs as keys and lists of URLs as values.
+        urls: Dictionary with imgur IDs as keys and lists of URLs as values.
         base_path: Location to save downloaded images.
         args: Namespace with 'mode' and 'threads' for download settings.
 
@@ -164,19 +165,19 @@ def _prepare_download_sequential(urls: dict[str, list[str]], base_path: Path) ->
     """Downloads images from given urls and saves them at the specified path
     sequentially.
 
-    A separate folder is created for each ID that has multiple images.
+    A separate folder is created for each imgur ID that has multiple images.
 
     Args:
-        urls (dict[str, list[str]]): A dictionary containing unique IDs as keys
+        urls (dict[str, list[str]]): A dictionary containing unique imgur IDs as keys
             and corresponding lists of image urls as values.
         base_path (Path): The path where the images should be saved.
 
     Returns:
         None
     """
-    for image_id in urls:
-        save_paths = _get_save_paths(image_id, urls[image_id], base_path)
-        for url, save_path in zip(urls[image_id], save_paths):
+    for imgur_id in urls:
+        save_paths = _get_save_paths(imgur_id, urls[imgur_id], base_path)
+        for url, save_path in zip(urls[imgur_id], save_paths):
             _download_single_image(url, save_path)
 
 
@@ -192,7 +193,7 @@ def _prepare_download_threaded(
 
 
     Args:
-        urls (dict[str, list[str]]): A dictionary where the key is the image id and
+        urls (dict[str, list[str]]): A dictionary where the key is the imgur id and
             the value is a list of URLs for the associated images.
         base_path (Path): The base directory path where the downloaded images will be saved.
         num_threads (int): The number of threads to use for the downloads.
@@ -207,9 +208,9 @@ def _prepare_download_threaded(
         t.start()
         threads.append(t)
 
-    for image_id in urls:
-        save_paths = _get_save_paths(image_id, urls[image_id], base_path)
-        for url, save_path in zip(urls[image_id], save_paths):
+    for imgur_id in urls:
+        save_paths = _get_save_paths(imgur_id, urls[imgur_id], base_path)
+        for url, save_path in zip(urls[imgur_id], save_paths):
             queue.put((url, save_path))
 
     # add sentinels for each thread
@@ -236,17 +237,17 @@ def _download_images_worker(queue: Queue) -> None:
         if next_item is None:
             queue.task_done()
             break
-        url, file_path = next_item
-        _download_single_image(url, file_path)
+        url, save_path = next_item
+        _download_single_image(url, save_path)
         queue.task_done()
 
 
-def _download_single_image(url: str, file_path: Path) -> None:
+def _download_single_image(url: str, save_path: Path) -> None:
     """Downloads an image from a given url and saves it at the specified path.
 
     Args:
         url (str): The url from where the image needs to be downloaded.
-        base_path (Path): The path where the downloaded image should be saved.
+        save_path (Path): The path where the downloaded image should be saved.
 
     Returns:
         None
@@ -257,7 +258,7 @@ def _download_single_image(url: str, file_path: Path) -> None:
     except requests.HTTPError as http_error:
         logger.error(f"Error downloading url {url}:\n {http_error}")
         return False
-    with open(file_path, "wb") as file:
+    with open(save_path, "wb") as file:
         file.write(response.content)
     logger.info(f"Successfully downloaded {url}")
 
@@ -279,13 +280,13 @@ def _get_save_base_path(tag: str) -> Path:
     return save_path
 
 
-def _get_save_paths(image_id: str, urls: list[str], base_path: Path) -> list[Path]:
+def _get_save_paths(imgur_id: str, urls: list[str], base_path: Path) -> list[Path]:
     """
     Generates a file path based on the given id and url.
 
     Args:
-        image_id (str): The unique identifier for the image(s).
-        url list[str]: A list of urls of the image(s) to download.
+        imgur_id (str): The unique identifier for the image(s).
+        urls list[str]: A list of urls of the image(s) to download.
         base_path (Path): The base directory to save the images in.
 
     Returns:
@@ -293,13 +294,13 @@ def _get_save_paths(image_id: str, urls: list[str], base_path: Path) -> list[Pat
     """
     save_paths = []
     if len(urls) > 1:
-        (base_path / image_id).mkdir(parents=True, exist_ok=True)
+        (base_path / imgur_id).mkdir(parents=True, exist_ok=True)
     for url in urls:
         ext = Path(url).suffix[1:]
         if len(urls) > 1:
-            save_paths.append(base_path / image_id / f"{image_id}.{ext}")
+            save_paths.append(base_path / imgur_id / f"{imgur_id}.{ext}")
         else:
-            save_paths.append(base_path / f"{image_id}.{ext}")
+            save_paths.append(base_path / f"{imgur_id}.{ext}")
     return save_paths
 
 
