@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import argparse
 import logging
 import os
@@ -5,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from queue import Queue
 from threading import Thread
+from typing import Optional
 
 import requests
 
@@ -197,7 +200,7 @@ def _prepare_download_threaded(
     Returns:
         None
     """
-    queue: Queue = Queue()
+    queue: Queue[Optional[tuple[str, Path]]] = Queue()
     threads = []
     for _ in range(num_threads):
         t = Thread(target=_download_images_worker, args=(queue,))
