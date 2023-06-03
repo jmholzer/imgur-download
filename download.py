@@ -30,9 +30,9 @@ def main() -> None:
         None
     """
     args = _parse_args()
+    _log_initiate_download_message(args)
     urls = _get_image_urls(args.tag)
     base_path = _get_save_base_path(args.tag)
-    _log_initiate_download_message(args)
     _initiate_download(urls, base_path, args)
 
 
@@ -78,28 +78,42 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _get_image_urls(tag: str) -> dict[str, list[str]]:
-    """Fetches and returns links to viral images from Imgur's hot gallery.
-
-    This function sends a GET request to Imgur's hot/viral gallery endpoint
-    using a client ID for authorization. It returns a list of links from the
-    response data. If an HTTP error occurs during the request, it logs the
-    error and returns an empty list.
+    """
+    This function retrieves a dictionary mapping image IDs to
+    lists of image URLs from Imgur's gallery tagged with a given tag.
 
     Args:
-        tag (str): The tag to search for.
+    tag (str): The tag to filter images by in Imgur's gallery.
 
     Returns:
-        dict[str, list[str]]: List of image URLs. If an error occurs, returns an empty list.
+        dict[str, list[str]]: A dictionary where each key is an
+        image ID, and each value is a list of URLs associated with
+        that image ID. Returns an empty dictionary if an error occurs
+        while making the request or if no images are found for the
+        provided tag.
+
+    Raises:
+        requests.exceptions.RequestException: If there is an issue
+            with the GET request to Imgur's API.
     """
     headers = {"Authorization": f"Client-ID {CLIENT_ID}"}
     response = requests.get(f"https://api.imgur.com/3/gallery/t/{tag}", headers=headers)
     try:
         response.raise_for_status()
-    except requests.HTTPError as http_error:
-        logger.error(f"Error: {http_error}")
+    except requests.exceptions.RequestException as exc:
+        logger.error(f"Error: {exc}")
         return {}
+
+    try:
+        items = response.json()["data"]["items"]
+    except KeyError:
+        logger.error(
+            f"Error: No images were found. Check that the tag {tag} exists on Imgur."
+        )
+        return {}
+
     urls = {}
-    for item in response.json()["data"]["items"]:
+    for item in items:
         if "images" not in item:
             continue
         image_id = item["link"].rpartition("/")[2]
