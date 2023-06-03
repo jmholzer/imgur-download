@@ -127,7 +127,7 @@ def _log_initiate_download_message(args: argparse.Namespace) -> None:
     Logs a message to the console indicating the start of image download.
 
     Args:
-        args: Namespace with values for 'tag', 'mode' and 'threads'.
+        args (argparse.Namespace): Namespace with values for 'tag', 'mode' and 'threads'.
 
     Returns:
         None
@@ -145,9 +145,11 @@ def _initiate_download(
     Starts image download in either 'threaded' or 'sequential' mode.
 
     Args:
-        urls: Dictionary with imgur IDs as keys and lists of URLs as values.
-        base_path: Location to save downloaded images.
-        args: Namespace with 'mode' and 'threads' for download settings.
+        urls (dict[str, list[str]]): Dictionary with imgur IDs as keys and
+            lists of URLs as values.
+        base_path (Path): Location to save downloaded images.
+        args (argparse.Namespace): Namespace with 'mode' and 'threads'
+            for download settings.
 
     Returns:
         None
@@ -161,10 +163,10 @@ def _initiate_download(
 
 
 def _prepare_download_sequential(urls: dict[str, list[str]], base_path: Path) -> None:
-    """Downloads images from given urls and saves them at the specified path
-    sequentially.
-
-    A separate folder is created for each imgur ID that has multiple images.
+    """
+    Downloads images from given urls and saves them at the specified path
+    sequentially. A separate directory is created for each imgur ID that has
+    multiple images. The `base_path` directory is created if it doesn't exist.
 
     Args:
         urls (dict[str, list[str]]): A dictionary containing unique imgur IDs as keys
@@ -185,10 +187,10 @@ def _prepare_download_threaded(
 ) -> None:
     """
     This function initiates a multithreaded download of images. It uses a worker
-    function `_download_images_worker` to download images concurrently. The function
-    assigns URLs to threads and manages thread execution. Each thread downloads
-    the images and saves them at the specified location. The function will
-    block until all downloads are completed.
+    function to download images concurrently. The function assigns URLs to threads
+    and manages thread execution. Each thread downloads the images and saves them
+    at the specified location. The function will block until all downloads are completed.
+    The `base_path` directory is created if it doesn't exist.
 
 
     Args:
